@@ -37,7 +37,7 @@ def check_env_var(variable, default=None):
         if default:
             return default
         else:
-            print("Environment variable {} missing.".format(variable))
+            print(datetime.now(), "Environment variable {} missing.".format(variable))
 
 # InfluxDB Database Details
 token = check_env_var('INFLUX_TOKEN')
@@ -58,37 +58,35 @@ device_id = check_env_var('DEVICE_NAME')
 def init():
     try:
         hwinfo = requests.get(poll_ip)
-        print("Remote Sensor Moniter is reachable")
+        print(datetime.now(), "Remote Sensor Monitor is reachable")
     except:
-        print("Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
+        print(datetime.now(), "Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
         exit()
 
 
 #####Polling function
-def poll(): 
-    retries=sample_time-5
+def poll(write_api, retries):
     for i in range(1, retries):
         try:
             hwinfo_web_data = requests.get(poll_ip)
         except:
             print(datetime.now(), " Error! Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
-            return
+            exit()
 
         try:
-            data=hwinfo_web_data.json()
-            process_data(data,write_api)
+            data = hwinfo_web_data.json()
+            return data
         except AssertionError as error:
-            print(error)
-            return
+            print(datetime.now(), error)
+            exit()
         except JSONDecodeError as error:
-            print("Could not fetch data (try: {}/{}): ".format(i, retries), error)
+            print(datetime.now(), "Could not fetch data (try: {}/{}): ".format(i, retries), error)
             time.sleep(1)
             continue
-        break
 
 #########Process data
-def process_data(data,write_api):
-    for a in data:   
+def process_data(write_api, data):
+    for a in data:
         sensorclass = a['SensorClass']
         sensorname = a['SensorName']
         sensorvalue = a['SensorValue']
@@ -114,18 +112,19 @@ def process_data(data,write_api):
             print("Sensor name: `{}`".format(sensorname))
             print("Sensor value: `{}`".format(sensorvalue))
             return
-    print(datetime.now(), ": Successfully posted data to server.")
+    print(datetime.now(), "Successfully posted data to server.")
 
 ####################################################################################################
-#Main Script Starts here
+# Main Script Starts here
 ####################################################################################################
-print("starting....")
+print(datetime.now(), "starting....")
+
+init()
+
 client = InfluxDBClient(url=db_url, token=token)
 write_api = client.write_api(write_options=SYNCHRONOUS)
-init()
-while True:    
-    poll()
+
+while True:
+    data = poll(write_api, sample_time-5)
+    process_data(write_api, data)
     time.sleep(sample_time - time.monotonic() % sample_time)
-
-
-        
