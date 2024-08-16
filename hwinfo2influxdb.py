@@ -79,22 +79,32 @@ def poll():
 #########Process data
 def process_data(data,write_api):
     for a in data:   
-        sensorclass=a['SensorClass']
-        sensorname=a['SensorName']
-        sensorvalue=a['SensorValue']
+        sensorclass = a['SensorClass']
+        sensorname = a['SensorName']
+        sensorvalue = a['SensorValue']
+
+        # Sanitize sensor class
+        sensorclass = sensorclass.replace(" ", "_")
+
+        # Sanitize sensor values
+        sensorvalue = sensorvalue.replace(',', '.')
+
+        # Sanitize sensor names
+        sensorname = sensorname.replace(",", "\,")
+        sensorname = sensorname.replace(" ", "_")
 
         #parse to format accepted by influxDB
-        influxdata=str(device_id+",Measurement=" + sensorclass.replace(" ", "_")+" "+str(sensorname.replace(" ", "_"))+"="+str(sensorvalue))
+        influxdata = str(device_id+",Measurement=" + sensorclass+" "+str(sensorname)+"="+str(sensorvalue))
 
         #Write to influxDB
         try:
             write_api.write(bucket, org, influxdata)
-        except:
-            print(datetime.now(), " Error! Could not write to database")
+        except Exception as err:
+            print(datetime.now(), " Error! Could not write to database:", err)
+            print("Sensor name: `{}`".format(sensorname))
+            print("Sensor value: `{}`".format(sensorvalue))
             return
     print(datetime.now(), ": Successfully posted data to server.")
-
-
 
 ####################################################################################################
 #Main Script Starts here
