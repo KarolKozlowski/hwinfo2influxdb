@@ -17,6 +17,7 @@
 # Import modules
 ####################################################################################################
 
+import os
 import requests
 import time
 from datetime import datetime
@@ -29,16 +30,25 @@ from simplejson.errors import JSONDecodeError
 # Variables to Set
 ####################################################################################################
 
+def check_env_var(variable, default=None):
+    if variable in os.environ:
+        return os.environ[variable]
+    else:
+        if default:
+            return default
+        else:
+            print("Environment variable {} missing.".format(variable))
+
 # InfluxDB Database Details
-token = "5Bn-0sJQIPMmq28lUXyfmBSWQjEJMj0qHgWRSz-5Ku2-er52wrxRWl7Yr1Sum7qIG8GbMEw4zuPFdv7Y6BkooA=="   ##sampledb
-org = "yourinfluxDBorghere"
-bucket = "yourbucketnamehere"
-db_url = "http://192.168.1.100:8086"
+token = check_env_var('INFLUX_TOKEN')
+org = check_env_var('INFLUX_ORG')
+bucket = check_env_var('INFLUX_BUCKET')
+db_url = check_env_var('INFLUX_URL')
 
 # Variables of PC
-sample_time = 10 # in seconds
-poll_ip = "http://192.168.1.101:55555"  #ip address of PC you are hosting
-device_id = "nameforyourdevicehere"
+sample_time = int(check_env_var('SAMPLE_TIME', 30))
+poll_ip = check_env_var('HWINFO_API')
+device_id = check_env_var('DEVICE_NAME')
 
 ####################################################################################################
 #Functions start here
