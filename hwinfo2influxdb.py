@@ -22,7 +22,7 @@ import time
 from datetime import datetime
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
-
+from simplejson.errors import JSONDecodeError
 
 
 ####################################################################################################
@@ -56,19 +56,25 @@ def init():
 
 #####Polling function
 def poll(): 
- 
-    try:        
-        hwinfo_web_data = requests.get(poll_ip)
-    except:
-        print(datetime.now(), " Error! Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
-        return
+    retries=sample_time-5
+    for i in range(1, retries):
+        try:
+            hwinfo_web_data = requests.get(poll_ip)
+        except:
+            print(datetime.now(), " Error! Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
+            return
 
-    try:    
-        data=hwinfo_web_data.json()                
-        process_data(data,write_api)      
-    except AssertionError as error:
-        print(error)
-        return
+        try:
+            data=hwinfo_web_data.json()
+            process_data(data,write_api)
+        except AssertionError as error:
+            print(error)
+            return
+        except JSONDecodeError as error:
+            print("Could not fetch data (try: {}/{}): ".format(i, retries), error)
+            time.sleep(1)
+            continue
+        break
 
 #########Process data
 def process_data(data,write_api):
