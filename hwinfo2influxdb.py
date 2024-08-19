@@ -127,7 +127,8 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 while True:
     start = time.monotonic()
 
-    data = poll(write_api, sample_time-5)
+    retries = sample_time - 5
+    data = poll(write_api, retries)
 
     if data:
         process_data(write_api, data)
