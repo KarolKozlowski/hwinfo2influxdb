@@ -65,8 +65,10 @@ def init():
 
 
 #####Polling function
-def poll(write_api, retries):
-    for i in range(1, retries):
+def poll(write_api, retry_time):
+    start = time.monotonic()
+
+    while start + retry_time > time.monotonic():
         try:
             hwinfo_web_data = requests.get(poll_ip)
         except:
@@ -80,8 +82,8 @@ def poll(write_api, retries):
             print(datetime.now(), error)
             exit()
         except JSONDecodeError as error:
-            print(datetime.now(), "Could not fetch data (try: {}/{}): ".format(i, retries), error)
-            time.sleep(1)
+            print(datetime.now(), "Could not fetch data (try: {:.2f}/{}): ".format(retry_time - time.monotonic(), retry_time), error)
+            time.sleep(2)
             continue
 
 #########Process data
@@ -127,8 +129,8 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 while True:
     start = time.monotonic()
 
-    retries = sample_time - 5
-    data = poll(write_api, retries)
+    retry_time = sample_time - 2
+    data = poll(write_api, retry_time)
 
     if data:
         process_data(write_api, data)
