@@ -126,5 +126,10 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 
 while True:
     data = poll(write_api, sample_time-5)
-    process_data(write_api, data)
+
+    if data:
+        process_data(write_api, data)
+    else:
+        print(datetime.now(), "Data could not be processed (missing).")
+
     time.sleep(sample_time - time.monotonic() % sample_time)
