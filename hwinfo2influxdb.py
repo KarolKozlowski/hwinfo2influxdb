@@ -125,11 +125,21 @@ client = InfluxDBClient(url=db_url, token=token)
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
 while True:
+    start = time.monotonic()
+
     data = poll(write_api, sample_time-5)
 
     if data:
         process_data(write_api, data)
     else:
         print(datetime.now(), "Data could not be processed (missing).")
+    stop = time.monotonic()
 
-    time.sleep(sample_time - time.monotonic() % sample_time)
+    processing_time = stop - start
+
+    if (sample_time > processing_time):
+        print(datetime.now(), "Processing completed in {:.2f}s, waiting for: {:.2f}s.".format(processing_time, sample_time - processing_time))
+        time.sleep(sample_time - processing_time)
+    else:
+        print(datetime.now(), "Processing took longer than sample timing.")
+
