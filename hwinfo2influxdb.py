@@ -80,8 +80,8 @@ def poll(retry_time):
             print(datetime.datetime.now(), error)
             sys.exit()
         except JSONDecodeError as error:
-            now = time.monotonic() - poll_start + retry_time
-            print(datetime.datetime.now(), f"Could not fetch data (try: {now:.2f}/{retry_time}): ", error)
+            polling_time = time.monotonic() - poll_start
+            print(datetime.datetime.now(), f"Could not fetch data (polling time: {polling_time:.2f}/{retry_time}): ", error)
             time.sleep(2)
             continue
 
