@@ -85,6 +85,8 @@ def poll(retry_time):
             time.sleep(2)
             continue
 
+    return None
+
 def process_data(api, data):
     """Function processing polled data."""
     for measurement in data:
