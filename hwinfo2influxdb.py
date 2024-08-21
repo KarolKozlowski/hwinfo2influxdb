@@ -1,43 +1,43 @@
-#HWiNFO to influxDB 2
-#Revision 1.00 28/04/2022
+"""
+HWiNFO to influxDB 2
+Revision 1.10 21/08/2024
 
-####Python Dependancies
-#pip install influxdb_client
+## Python Dependancies
+pip install influxdb_client
 
-###Other Depenendencices
-#Remote Sensor Monitor
-#https://www.hwinfo.com/forum/threads/introducing-remote-sensor-monitor-a-restful-web-server.1025/
+## Other Depenendencices
+Remote Sensor Monitor
+https://www.hwinfo.com/forum/threads/introducing-remote-sensor-monitor-a-restful-web-server.1025/
 
-#HWiNFO PRO
-#You must have HWiNFO pro - as the normal HWiNFO only gives shared memory support for 12 hrs and then resets.
-#This is not an issue but it means that you have to constantly enable it every 12hrs and restart the Remote Sensor Monitor below.
+HWiNFO PRO
+You must have HWiNFO pro - as the normal HWiNFO only gives shared memory support for 12 hrs and then resets.
+This is not an issue but it means that you have to constantly enable it every 12hrs and restart the Remote Sensor Monitor below.
 
-
-####################################################################################################
-# Import modules
-####################################################################################################
+"""
 
 import os
-import requests
+import sys
 import time
-from datetime import datetime
-from influxdb_client import InfluxDBClient, Point, WritePrecision
+import datetime
+import requests
+
+from influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.exceptions import InfluxDBError
 from simplejson.errors import JSONDecodeError
 
 
-####################################################################################################
-# Variables to Set
-####################################################################################################
-
 def check_env_var(variable, default=None):
+    """Function verifying presence of env variables."""
     if variable in os.environ:
-        return os.environ[variable]
+        return_val = os.environ[variable]
     else:
         if default:
-            return default
+            return_val = default
         else:
-            print(datetime.now(), "Environment variable {} missing.".format(variable))
+            print(datetime.datetime.now(), f"Environment variable {variable} missing.")
+
+    return return_val
 
 # InfluxDB Database Details
 token = check_env_var('INFLUX_TOKEN')
@@ -50,48 +50,47 @@ sample_time = int(check_env_var('SAMPLE_TIME', 30))
 poll_ip = check_env_var('HWINFO_API')
 device_id = check_env_var('DEVICE_NAME')
 
-####################################################################################################
-#Functions start here
-####################################################################################################
-
-#test html webserver is up
 def init():
+    """Function checking availability of data server."""
     try:
-        hwinfo = requests.get(poll_ip)
-        print(datetime.now(), "Remote Sensor Monitor is reachable")
-    except:
-        print(datetime.now(), "Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
-        exit()
+        hwinfo = requests.get(poll_ip, timeout=10)
+        status_code = hwinfo.status_code
+        print(datetime.datetime.now(), f"Remote Sensor Monitor is reachable (HTTP:{status_code}).")
+    except requests.ConnectionError:
+        print(datetime.datetime.now(), "Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
+        sys.exit()
 
 
-#####Polling function
-def poll(write_api, retry_time):
-    start = time.monotonic()
+def poll(retry_time):
+    """Function polling data server."""
+
+    poll_start = time.monotonic()
 
     while start + retry_time > time.monotonic():
         try:
-            hwinfo_web_data = requests.get(poll_ip)
-        except:
-            print(datetime.now(), " Error! Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
-            exit()
+            hwinfo_web_data = requests.get(poll_ip, timeout=10)
+        except requests.ConnectionError:
+            print(datetime.datetime.now(), " Error! Unable to conact Remote Sensor Moniter web server. Check both Remote Sensor Moniter and HWiNFO are running.")
+            sys.exit()
 
         try:
             data = hwinfo_web_data.json()
             return data
         except AssertionError as error:
-            print(datetime.now(), error)
-            exit()
+            print(datetime.datetime.now(), error)
+            sys.exit()
         except JSONDecodeError as error:
-            print(datetime.now(), "Could not fetch data (try: {:.2f}/{}): ".format(retry_time - time.monotonic(), retry_time), error)
+            now = time.monotonic() - poll_start + retry_time
+            print(datetime.datetime.now(), f"Could not fetch data (try: {now:.2f}/{retry_time}): ", error)
             time.sleep(2)
             continue
 
-#########Process data
-def process_data(write_api, data):
-    for a in data:
-        sensorclass = a['SensorClass']
-        sensorname = a['SensorName']
-        sensorvalue = a['SensorValue']
+def process_data(api, data):
+    """Function processing polled data."""
+    for measurement in data:
+        sensorclass = measurement['SensorClass']
+        sensorname = measurement['SensorName']
+        sensorvalue = measurement['SensorValue']
 
         # Sanitize sensor class
         sensorclass = sensorclass.replace(" ", "_")
@@ -100,7 +99,7 @@ def process_data(write_api, data):
         sensorvalue = sensorvalue.replace(',', '.')
 
         # Sanitize sensor names
-        sensorname = sensorname.replace(",", "\,")
+        sensorname = sensorname.replace(",", r"\,")
         sensorname = sensorname.replace(" ", "_")
 
         #parse to format accepted by influxDB
@@ -108,18 +107,16 @@ def process_data(write_api, data):
 
         #Write to influxDB
         try:
-            write_api.write(bucket, org, influxdata)
-        except Exception as err:
-            print(datetime.now(), " Error! Could not write to database:", err)
-            print("Sensor name: `{}`".format(sensorname))
-            print("Sensor value: `{}`".format(sensorvalue))
+            api.write(bucket, org, influxdata)
+        except InfluxDBError as err:
+            print(datetime.datetime.now(), " Error! Could not write to database:", err)
+            print(f"Sensor name: `{sensorname}`")
+            print(f"Sensor value: `{sensorvalue}`")
             return
-    print(datetime.now(), "Successfully posted data to server.")
+    print(datetime.datetime.now(), "Successfully posted data to server.")
 
-####################################################################################################
-# Main Script Starts here
-####################################################################################################
-print(datetime.now(), "starting....")
+
+print(datetime.datetime.now(), "starting....")
 
 init()
 
@@ -129,20 +126,20 @@ write_api = client.write_api(write_options=SYNCHRONOUS)
 while True:
     start = time.monotonic()
 
-    retry_time = sample_time - 2
-    data = poll(write_api, retry_time)
+    poll_retry_time = sample_time - 2
+    poll_data = poll(poll_retry_time)
 
-    if data:
-        process_data(write_api, data)
+    if poll_data:
+        process_data(write_api, poll_data)
     else:
-        print(datetime.now(), "Data could not be processed (missing).")
+        print(datetime.datetime.now(), "Data could not be processed (missing).")
     stop = time.monotonic()
 
     processing_time = stop - start
+    wait_time = sample_time - processing_time
 
-    if (sample_time > processing_time):
-        print(datetime.now(), "Processing completed in {:.2f}s, waiting for: {:.2f}s.".format(processing_time, sample_time - processing_time))
+    if sample_time > processing_time:
+        print(datetime.datetime.now(), f"Processing completed in {processing_time:.2f}s, waiting for: {wait_time:.2f}s.")
         time.sleep(sample_time - processing_time)
     else:
-        print(datetime.now(), "Processing took longer than sample timing.")
-
+        print(datetime.datetime.now(), "Processing took longer than sample timing.")
