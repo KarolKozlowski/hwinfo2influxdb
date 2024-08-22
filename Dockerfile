@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY hwinfo2influxdb.py .
 
-CMD [ "python", "hwinfo2influxdb.py" ]
+CMD [ "python", "-u", "hwinfo2influxdb.py" ]
